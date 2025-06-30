@@ -1,9 +1,24 @@
 import sys
 import argparse
 import logging
+import ollama_rag.commands as commands
 
-from ollama_rag.learner import Learner
-from ollama_rag.continuos_learner import ContinousLearner
+from phoenix.otel import register
+
+
+def setup_tracing():
+    register(
+        project_name="local-llm-rag",
+        auto_instrument=True,
+    )
+
+
+def setup_logging(verbose: bool):
+    logging.getLogger("pdfminer").setLevel(logging.WARNING)
+    logging.getLogger("unstructured").setLevel(logging.WARNING)
+
+    log_level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(level=log_level)
 
 
 def main():
@@ -14,6 +29,11 @@ def main():
         "--verbose",
         action="store_true",
         help="Verbose logging",
+    )
+    root_parser.add_argument(
+        "--no-tracing",
+        action="store_true",
+        help="Disable tracing logging",
     )
     root_parser.add_argument(
         "--ollama-host",
@@ -45,6 +65,7 @@ def main():
         default="llama3.2",
         help="Embedding model",
     )
+
     subparsers = root_parser.add_subparsers(
         dest="subcommand",
         title="Subcommands",
@@ -52,57 +73,21 @@ def main():
 
     learn_parser = subparsers.add_parser("learn")
     learn_parser.add_argument("files", nargs="+", help="Files to learn")
-
-    def run_learn(args):
-        learner = Learner(
-            ollama_host=args.ollama_host,
-            llm_model=args.llm_model,
-            embedding_model=args.embedding_model,
-            vector_collection=args.vector_collection,
-            vector_store_path=args.vector_store_path,
-        )
-        learner.learn(args.files)
-
-    learn_parser.set_defaults(func=run_learn)
+    learn_parser.set_defaults(func=commands.learn)
 
     query_parser = subparsers.add_parser("query")
     query_parser.add_argument("query", type=str, help="Query")
-
-    def run_query(args):
-        learner = Learner(
-            ollama_host=args.ollama_host,
-            llm_model=args.llm_model,
-            embedding_model=args.embedding_model,
-            vector_collection=args.vector_collection,
-            vector_store_path=args.vector_store_path,
-        )
-        print(learner.query(args.query))
-
-    query_parser.set_defaults(func=run_query)
+    query_parser.set_defaults(func=commands.query)
 
     watch_parser = subparsers.add_parser("watch")
     watch_parser.add_argument("path", type=str, help="Watch directory")
-
-    def run_watch(args):
-        learner = Learner(
-            ollama_host=args.ollama_host,
-            llm_model=args.llm_model,
-            embedding_model=args.embedding_model,
-            vector_collection=args.vector_collection,
-            vector_store_path=args.vector_store_path,
-        )
-        ContinousLearner(
-            learner=learner, index_db_path=f"{args.vector_store_path}/index.db"
-        ).run(args.path)
-
-    watch_parser.set_defaults(func=run_watch)
+    watch_parser.set_defaults(func=commands.watch)
 
     args = root_parser.parse_args()
 
-    log_level = logging.INFO
-    if args.verbose:
-        log_level = logging.DEBUG
-    logging.basicConfig(level=log_level)
+    setup_logging(args.verbose)
+    if not args.no_tracing:
+        setup_tracing()
 
     if hasattr(args, "func"):
         args.func(args)

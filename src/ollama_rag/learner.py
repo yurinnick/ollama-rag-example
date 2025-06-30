@@ -52,12 +52,15 @@ class Learner:
         return False
 
     def __load_pdf(self, filepath: os.PathLike) -> List[Document]:
+        logger.debug(f"Loading PDF {filepath}")
         loader = UnstructuredPDFLoader(file_path=filepath)
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
         )
-        return loader.load_and_split(text_splitter)
+        chunks = loader.load_and_split(text_splitter)
+        logger.debug(f"Loaded {filepath}: {len(chunks)} chunks")
+        return chunks
 
     def learn(self, files: List[os.PathLike]) -> None:
         for filepath in files:

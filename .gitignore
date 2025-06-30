@@ -11,3 +11,4 @@ wheels/
 
 # Knowledge DB
 .knowledge_db
+data/
